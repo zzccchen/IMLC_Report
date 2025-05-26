@@ -90,8 +90,12 @@ function createHeatmapTable(nodes, matrixData, rowHeaderPrefix, colHeaderPrefix,
                 cell.textContent = '-';
                 cell.classList.add('na');
             } else {
-                // 直接显示原始值，不进行单位转换
-                cell.textContent = val.toFixed(1);
+                // 对于带宽数据（isLatency为false），将值转换为GB/s
+                if (!isLatency) {
+                    cell.textContent = (val / 1024).toFixed(1);
+                } else {
+                    cell.textContent = val.toFixed(1);
+                }
                 
                 // 计算颜色 - 使用指定的渐变色
                 let normalizedValue = (maxVal - minVal === 0) ? 0.5 : (val - minVal) / (maxVal - minVal);

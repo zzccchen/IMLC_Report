@@ -31,9 +31,8 @@ function displayMLCReport(parsedData, reportContainer, charts) {
         const avgLocal = localLatencies.length > 0 ? localLatencies.reduce((a, b) => a + b, 0) / localLatencies.length : 0;
         const avgRemote = remoteLatencies.length > 0 ? remoteLatencies.reduce((a, b) => a + b, 0) / remoteLatencies.length : 0;
         const interpretation = createInterpretation(`
-            平均本地NUMA节点访问延迟: <strong>${avgLocal.toFixed(1)} ns</strong>。<br>
-            平均远程NUMA节点访问延迟: <strong>${avgRemote.toFixed(1)} ns</strong>。<br>
-            (热力图说明: 延迟越低颜色越偏绿/浅，越高则越偏红/深)。
+            平均本地NUMA节点访问延迟: <strong>${avgLocal.toFixed(1)} ns</strong><br>
+            平均远程NUMA节点访问延迟: <strong>${avgRemote.toFixed(1)} ns</strong><br>
         `);
         section.appendChild(interpretation);
     } else if (parsedData.idleLatencies) {
@@ -88,9 +87,9 @@ function displayMLCReport(parsedData, reportContainer, charts) {
         });
         let allReadsBw = parsedData.peakBandwidths.find(b => b.label.toLowerCase().includes("all reads") || b.label.toLowerCase().includes("read only"));
         let streamTriadBw = parsedData.peakBandwidths.find(b => b.label.toLowerCase().includes("stream-triad") || b.label.toLowerCase().includes("stream triad"));
-        let interpText = `此图表显示了不同读写比率下的峰值内存带宽。`;
-        if (allReadsBw) interpText += ` 全读带宽约为 <strong>${(allReadsBw.value / 1000).toFixed(1)} GB/s</strong>。`;
-        if (streamTriadBw) interpText += ` Stream-Triad 带宽 (一种更接近实际应用的指标) 约为 <strong>${(streamTriadBw.value / 1000).toFixed(1)} GB/s</strong>。`;
+        let interpText = `不同读写比率下的峰值内存带宽。`;
+        if (allReadsBw) interpText += ` 全读带宽约为 <strong>${(allReadsBw.value / 1024).toFixed(1)} GB/s</strong>`;
+        if (streamTriadBw) interpText += `<br>Stream-Triad 带宽 (一种更接近实际应用的指标) 约为 <strong>${(streamTriadBw.value / 1024).toFixed(1)} GB/s</strong>`;
 
         let increasingWithWrites = false;
         let prevWriteRatioValue = -1;
@@ -111,16 +110,16 @@ function displayMLCReport(parsedData, reportContainer, charts) {
             }
         });
         if (increasingWithWrites) {
-            interpText += "<br><strong>注意:</strong> 观察到带宽随着写操作比例的增加而增加的趋势，这可能表明写操作被更有效地处理，或者特定的缓存/内存控制器行为。";
+            interpText += "<br><strong>注意:</strong> 观察到带宽随着写操作比例的增加而增加的趋势，这可能表明写操作被更有效地处理，或者特定的缓存/内存控制器行为";
         } else {
-            interpText += " 通常，随着写操作比例的增加，由于写操作的复杂性，带宽可能会有所下降或保持稳定。";
+            interpText += "<br>通常，随着写操作比例的增加，由于写操作的复杂性，带宽会有所下降";
         }
         section.appendChild(createInterpretation(interpText));
     }
 
     // 3. Memory Bandwidths between nodes (Heatmap Table)
     if (parsedData.interNodeBandwidths && parsedData.interNodeBandwidths.matrix.length > 0 && parsedData.interNodeBandwidths.nodes.length > 0) {
-        const section = createSection(reportContainer, "3. 系统内节点间内存带宽 (MB/s, 只读) - 热力图");
+        const section = createSection(reportContainer, "3. 系统内节点间内存带宽 (GB/s, 只读) - 热力图");
         const tableContainer = document.createElement('div');
         tableContainer.className = 'chart-container';
         const table = createHeatmapTable(parsedData.interNodeBandwidths.nodes, parsedData.interNodeBandwidths.matrix, "源NUMA节点", "目标NUMA节点", false);
@@ -140,9 +139,8 @@ function displayMLCReport(parsedData, reportContainer, charts) {
         const avgRemoteBw = remoteBw.length > 0 ? remoteBw.reduce((a, b) => a + b, 0) / remoteBw.length : 0;
 
         section.appendChild(createInterpretation(`
-            每个NUMA节点访问其本地内存的平均带宽约为 <strong>${(avgLocalBw / 1000).toFixed(1)} GB/s</strong>。<br>
-            跨NUMA节点访问远程内存的平均带宽约为 <strong>${(avgRemoteBw / 1000).toFixed(1)} GB/s</strong>。<br>
-            (热力图说明: 带宽越高颜色越偏绿/浅，越低则越偏红/深)。
+            每个NUMA节点访问其本地内存的平均带宽约为 <strong>${(avgLocalBw / 1024).toFixed(1)} GB/s</strong><br>
+            跨NUMA节点访问远程内存的平均带宽约为 <strong>${(avgRemoteBw / 1024).toFixed(1)} GB/s</strong><br>
         `));
     } else if (parsedData.interNodeBandwidths) {
         console.warn("Inter-node bandwidth data present but matrix or nodes are empty, skipping section.", parsedData.interNodeBandwidths);
@@ -214,10 +212,9 @@ function displayMLCReport(parsedData, reportContainer, charts) {
         const peakLoad = parsedData.loadedLatencies[0];
         const lowLoad = parsedData.loadedLatencies[parsedData.loadedLatencies.length - 1];
         section.appendChild(createInterpretation(`
-            此图表展示了在不同内存负载（通过注入延迟控制，值越小表示负载越高）下的延迟和带宽关系。<br>
-            在最高负载时 (注入延迟 ${peakLoad.delay} ns)，延迟为 <strong>${peakLoad.latency.toFixed(1)} ns</strong>，带宽为 <strong>${(peakLoad.bandwidth / 1000).toFixed(1)} GB/s</strong>。<br>
-            在最低负载时 (注入延迟 ${lowLoad.delay} ns)，延迟降至 <strong>${lowLoad.latency.toFixed(1)} ns</strong>，带宽为 <strong>${(lowLoad.bandwidth / 1000).toFixed(1)} GB/s</strong>。<br>
-            通常，要达到峰值带宽，需要容忍更高的延迟。曲线的拐点可以帮助识别系统在负载下的最佳工作点。
+            在最高负载时 (注入延迟 ${peakLoad.delay} ns)，延迟为 <strong>${peakLoad.latency.toFixed(1)} ns</strong>，带宽为 <strong>${(peakLoad.bandwidth / 1024).toFixed(1)} GB/s</strong><br>
+            在最低负载时 (注入延迟 ${lowLoad.delay} ns)，延迟降至 <strong>${lowLoad.latency.toFixed(1)} ns</strong>，带宽为 <strong>${(lowLoad.bandwidth / 1024).toFixed(1)} GB/s</strong><br>
+            通常，要达到峰值带宽，需要容忍更高的延迟。曲线的拐点可以帮助识别系统在负载下的最佳工作点
         `));
     }
 
@@ -229,7 +226,7 @@ function displayMLCReport(parsedData, reportContainer, charts) {
             c2cText += `本地插槽 L2->L2 HIT 延迟: <strong>${parsedData.cacheToCache.localHit.toFixed(1)} ns</strong><br>`;
         }
         if (!isNaN(parsedData.cacheToCache.localHitm)) {
-            c2cText += `本地插槽 L2->L2 HITM (脏数据) 延迟: <strong>${parsedData.cacheToCache.localHitm.toFixed(1)} ns</strong><br><br>`;
+            c2cText += `本地插槽 L2->L2 HITM (脏数据) 延迟: <strong>${parsedData.cacheToCache.localHitm.toFixed(1)} ns</strong>`;
         }
         if (c2cText !== "") section.appendChild(createInterpretation(c2cText));
 
@@ -255,10 +252,7 @@ function displayMLCReport(parsedData, reportContainer, charts) {
         processCacheMatrix(parsedData.cacheToCache.remoteHitmReaderHomed, "远程插槽 L2->L2 HITM 延迟 (数据地址归属于读取者插槽)", false);
 
         section.appendChild(createInterpretation(`
-            (热力图说明: 延迟越低颜色越偏绿/浅，越高则越偏红/深)。<br>
-            本地插槽内的缓存传输通常最快。跨插槽传输（特别是涉及修改过的缓存行 - HITM）延迟会显著增加。<br>
-            数据地址的归属节点（即数据由哪个插槽的内存控制器管理）对远程缓存一致性延迟有重要影响。"
-            +"通常，当数据地址归属于读取者一方的Socket时，其访问延迟可能更低，因为数据更"靠近"请求者。
+            本地插槽内的缓存传输通常最快<br>跨插槽传输（特别是涉及修改过的缓存行 - HITM）延迟会显著增加
         `));
     }
 
