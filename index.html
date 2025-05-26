@@ -10,8 +10,17 @@
 <body>
     <div class="container">
         <h1>Intel&reg; Memory Latency Checker (MLC) 结果可视化报告</h1>
-        <textarea id="mlcOutput" placeholder="在此处粘贴MLC的完整输出结果..."></textarea>
-        <button id="generateReportBtn">生成报告</button>
+        <div class="input-container">
+            <div class="input-group">
+                <label for="mlcOutput1">MLC输出结果 1:</label>
+                <textarea id="mlcOutput1" placeholder="在此处粘贴第一组MLC的完整输出结果..."></textarea>
+            </div>
+            <div class="input-group">
+                <label for="mlcOutput2">MLC输出结果 2:</label>
+                <textarea id="mlcOutput2" placeholder="在此处粘贴第二组MLC的完整输出结果..."></textarea>
+            </div>
+        </div>
+        <button id="generateReportBtn">生成对比报告</button>
         <div id="reportContainer">
             <!-- 图表和表格将在此处动态生成 -->
         </div>

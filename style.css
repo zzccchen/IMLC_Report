@@ -122,4 +122,48 @@ table.heatmap-table td.light-bg-text {
     h2 { font-size: 1.2em; }
     table.heatmap-table, table.heatmap-table th, table.heatmap-table td { font-size: 0.8em; padding: 5px; min-width: 35px;}
     .chart-container { max-width: 100%; } /* Allow full width on small screens */
+}
+
+.input-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group label {
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+.input-group textarea {
+    width: 100%;
+    height: 200px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+.comparison-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.comparison-column {
+    flex: 1;
+}
+
+.diff-analysis {
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
 } 

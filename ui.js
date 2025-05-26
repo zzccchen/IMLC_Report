@@ -278,4 +278,683 @@ function displayMLCReport(parsedData, reportContainer, charts) {
         reportContainer.innerHTML = '<p style="color: red; text-align: center;">未能从输入中解析到任何有效数据。请确保粘贴的是完整的MLC输出，并且格式与标准输出一致。</p>';
     }
     return chartsLocal; // Return the updated charts object
+}
+
+function displayMLCComparisonReport(parsedData1, parsedData2, reportContainer, charts) {
+    reportContainer.innerHTML = ''; // Clear previous report
+    let chartsLocal = destroyCharts(charts); // Destroy old charts and get a new charts object
+
+    // 显示工具版本信息
+    if (parsedData1.toolVersion || parsedData2.toolVersion) {
+        const versionEl = document.createElement('p');
+        versionEl.innerHTML = `
+            <strong>工具版本对比:</strong><br>
+            数据集1: ${parsedData1.toolVersion || '未知'}<br>
+            数据集2: ${parsedData2.toolVersion || '未知'}
+        `;
+        versionEl.style.textAlign = 'center';
+        versionEl.style.marginBottom = '20px';
+        reportContainer.appendChild(versionEl);
+    }
+
+    // 1. Idle Latencies (Heatmap Table)
+    if (parsedData1.idleLatencies && parsedData2.idleLatencies) {
+        const section = createSection(reportContainer, "1. 空闲状态下随机访问延迟 (ns) - 热力图对比");
+        
+        // 计算两个数据集的全局最大最小值
+        let globalMin = Infinity;
+        let globalMax = -Infinity;
+        
+        // 处理数据集1
+        parsedData1.idleLatencies.matrix.forEach(row => {
+            row.forEach(val => {
+                if (!isNaN(val)) {
+                    globalMin = Math.min(globalMin, val);
+                    globalMax = Math.max(globalMax, val);
+                }
+            });
+        });
+        
+        // 处理数据集2
+        parsedData2.idleLatencies.matrix.forEach(row => {
+            row.forEach(val => {
+                if (!isNaN(val)) {
+                    globalMin = Math.min(globalMin, val);
+                    globalMax = Math.max(globalMax, val);
+                }
+            });
+        });
+        
+        // 创建两个热力图的容器
+        const tablesContainer = document.createElement('div');
+        tablesContainer.style.display = 'flex';
+        tablesContainer.style.gap = '20px';
+        tablesContainer.style.marginBottom = '20px';
+        
+        // 数据集1的热力图
+        const tableContainer1 = document.createElement('div');
+        tableContainer1.className = 'chart-container';
+        tableContainer1.style.flex = '1';
+        const table1 = createHeatmapTable(
+            parsedData1.idleLatencies.nodes,
+            parsedData1.idleLatencies.matrix,
+            "源NUMA节点",
+            "目标NUMA节点",
+            true,
+            "数据集1",
+            globalMin,
+            globalMax
+        );
+        tableContainer1.appendChild(table1);
+        tablesContainer.appendChild(tableContainer1);
+
+        // 数据集2的热力图
+        const tableContainer2 = document.createElement('div');
+        tableContainer2.className = 'chart-container';
+        tableContainer2.style.flex = '1';
+        const table2 = createHeatmapTable(
+            parsedData2.idleLatencies.nodes,
+            parsedData2.idleLatencies.matrix,
+            "源NUMA节点",
+            "目标NUMA节点",
+            true,
+            "数据集2",
+            globalMin,
+            globalMax
+        );
+        tableContainer2.appendChild(table2);
+        tablesContainer.appendChild(tableContainer2);
+
+        section.appendChild(tablesContainer);
+
+        // 计算并显示平均值对比
+        let localLatencies1 = [], remoteLatencies1 = [];
+        let localLatencies2 = [], remoteLatencies2 = [];
+
+        // 处理数据集1
+        parsedData1.idleLatencies.matrix.forEach((row, rIdx) => {
+            row.forEach((val, cIdx) => {
+                if (isNaN(val)) return;
+                if (parsedData1.idleLatencies.nodes[rIdx] === parsedData1.idleLatencies.nodes[cIdx]) {
+                    localLatencies1.push(val);
+                } else {
+                    remoteLatencies1.push(val);
+                }
+            });
+        });
+
+        // 处理数据集2
+        parsedData2.idleLatencies.matrix.forEach((row, rIdx) => {
+            row.forEach((val, cIdx) => {
+                if (isNaN(val)) return;
+                if (parsedData2.idleLatencies.nodes[rIdx] === parsedData2.idleLatencies.nodes[cIdx]) {
+                    localLatencies2.push(val);
+                } else {
+                    remoteLatencies2.push(val);
+                }
+            });
+        });
+
+        const avgLocal1 = localLatencies1.length > 0 ? localLatencies1.reduce((a, b) => a + b, 0) / localLatencies1.length : 0;
+        const avgRemote1 = remoteLatencies1.length > 0 ? remoteLatencies1.reduce((a, b) => a + b, 0) / remoteLatencies1.length : 0;
+        const avgLocal2 = localLatencies2.length > 0 ? localLatencies2.reduce((a, b) => a + b, 0) / localLatencies2.length : 0;
+        const avgRemote2 = remoteLatencies2.length > 0 ? remoteLatencies2.reduce((a, b) => a + b, 0) / remoteLatencies2.length : 0;
+
+        const interpretation = createInterpretation(`
+            <div class="comparison-container">
+                <div class="comparison-column">
+                    <strong>数据集1:</strong><br>
+                    平均本地NUMA节点访问延迟: ${avgLocal1.toFixed(1)} ns<br>
+                    平均远程NUMA节点访问延迟: ${avgRemote1.toFixed(1)} ns
+                </div>
+                <div class="comparison-column">
+                    <strong>数据集2:</strong><br>
+                    平均本地NUMA节点访问延迟: ${avgLocal2.toFixed(1)} ns<br>
+                    平均远程NUMA节点访问延迟: ${avgRemote2.toFixed(1)} ns
+                </div>
+            </div>
+            <div class="diff-analysis">
+                <strong>差异分析:</strong><br>
+                本地访问延迟差异: ${Math.abs(avgLocal1 - avgLocal2).toFixed(1)} ns (${((Math.abs(avgLocal1 - avgLocal2) / Math.min(avgLocal1, avgLocal2)) * 100).toFixed(1)}%)<br>
+                远程访问延迟差异: ${Math.abs(avgRemote1 - avgRemote2).toFixed(1)} ns (${((Math.abs(avgRemote1 - avgRemote2) / Math.min(avgRemote1, avgRemote2)) * 100).toFixed(1)}%)
+            </div>
+        `);
+        section.appendChild(interpretation);
+    }
+
+    // 2. Peak Injection Memory Bandwidths (Bar Chart)
+    if (parsedData1.peakBandwidths && parsedData2.peakBandwidths) {
+        const section = createSection(reportContainer, "2. 系统峰值注入内存带宽 (GB/s) 对比");
+        const canvasId = "peakBandwidthChart";
+        const canvasContainer = document.createElement('div');
+        canvasContainer.className = 'chart-container';
+        canvasContainer.style.height = '400px';
+        const canvas = createCanvas(canvasContainer, canvasId);
+        section.appendChild(canvasContainer);
+
+        // 准备数据集
+        const labels = parsedData1.peakBandwidths.map(item => item.label);
+        const dataset1 = parsedData1.peakBandwidths.map(item => item.value / 1024);
+        const dataset2 = parsedData2.peakBandwidths.map(item => item.value / 1024);
+
+        chartsLocal[canvasId] = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: '数据集1 带宽 (GB/s)',
+                        data: dataset1,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: '数据集2 带宽 (GB/s)',
+                        data: dataset2,
+                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        formatter: function(value) {
+                            return value.toFixed(1) + ' GB/s';
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        min: 0,
+                        title: {
+                            display: true,
+                            text: 'GB/s'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 添加带宽对比分析
+        let allReadsBw1 = parsedData1.peakBandwidths.find(b => b.label.toLowerCase().includes("all reads") || b.label.toLowerCase().includes("read only"));
+        let streamTriadBw1 = parsedData1.peakBandwidths.find(b => b.label.toLowerCase().includes("stream-triad") || b.label.toLowerCase().includes("stream triad"));
+        let allReadsBw2 = parsedData2.peakBandwidths.find(b => b.label.toLowerCase().includes("all reads") || b.label.toLowerCase().includes("read only"));
+        let streamTriadBw2 = parsedData2.peakBandwidths.find(b => b.label.toLowerCase().includes("stream-triad") || b.label.toLowerCase().includes("stream triad"));
+
+        let interpText = `<strong>带宽对比分析:</strong><br>`;
+        if (allReadsBw1 && allReadsBw2) {
+            const bw1 = allReadsBw1.value / 1024;
+            const bw2 = allReadsBw2.value / 1024;
+            const diff = Math.abs(bw1 - bw2);
+            const percentDiff = (diff / Math.min(bw1, bw2)) * 100;
+            interpText += `全读带宽对比: ${bw1.toFixed(1)} vs ${bw2.toFixed(1)} GB/s (差异: ${diff.toFixed(1)} GB/s, ${percentDiff.toFixed(1)}%)<br>`;
+        }
+        if (streamTriadBw1 && streamTriadBw2) {
+            const bw1 = streamTriadBw1.value / 1024;
+            const bw2 = streamTriadBw2.value / 1024;
+            const diff = Math.abs(bw1 - bw2);
+            const percentDiff = (diff / Math.min(bw1, bw2)) * 100;
+            interpText += `Stream-Triad带宽对比: ${bw1.toFixed(1)} vs ${bw2.toFixed(1)} GB/s (差异: ${diff.toFixed(1)} GB/s, ${percentDiff.toFixed(1)}%)<br>`;
+        }
+
+        section.appendChild(createInterpretation(interpText));
+    }
+
+    // 3. Memory Bandwidths between nodes (Heatmap Table)
+    if (parsedData1.interNodeBandwidths && parsedData2.interNodeBandwidths) {
+        const section = createSection(reportContainer, "3. 系统内节点间内存带宽 (GB/s, 只读) - 热力图对比");
+        
+        // 创建两个热力图的容器
+        const tablesContainer = document.createElement('div');
+        tablesContainer.style.display = 'flex';
+        tablesContainer.style.gap = '20px';
+        tablesContainer.style.marginBottom = '20px';
+        
+        // 数据集1的热力图
+        const tableContainer1 = document.createElement('div');
+        tableContainer1.className = 'chart-container';
+        tableContainer1.style.flex = '1';
+        const table1 = createHeatmapTable(
+            parsedData1.interNodeBandwidths.nodes,
+            parsedData1.interNodeBandwidths.matrix,
+            "源NUMA节点",
+            "目标NUMA节点",
+            false,
+            "数据集1"
+        );
+        tableContainer1.appendChild(table1);
+        tablesContainer.appendChild(tableContainer1);
+
+        // 数据集2的热力图
+        const tableContainer2 = document.createElement('div');
+        tableContainer2.className = 'chart-container';
+        tableContainer2.style.flex = '1';
+        const table2 = createHeatmapTable(
+            parsedData2.interNodeBandwidths.nodes,
+            parsedData2.interNodeBandwidths.matrix,
+            "源NUMA节点",
+            "目标NUMA节点",
+            false,
+            "数据集2"
+        );
+        tableContainer2.appendChild(table2);
+        tablesContainer.appendChild(tableContainer2);
+
+        section.appendChild(tablesContainer);
+
+        // 计算并显示平均值对比
+        let localBw1 = [], remoteBw1 = [];
+        let localBw2 = [], remoteBw2 = [];
+
+        // 处理数据集1
+        parsedData1.interNodeBandwidths.matrix.forEach((row, rIdx) => {
+            row.forEach((val, cIdx) => {
+                if (isNaN(val)) return;
+                if (parsedData1.interNodeBandwidths.nodes[rIdx] === parsedData1.interNodeBandwidths.nodes[cIdx]) {
+                    localBw1.push(val);
+                } else {
+                    remoteBw1.push(val);
+                }
+            });
+        });
+
+        // 处理数据集2
+        parsedData2.interNodeBandwidths.matrix.forEach((row, rIdx) => {
+            row.forEach((val, cIdx) => {
+                if (isNaN(val)) return;
+                if (parsedData2.interNodeBandwidths.nodes[rIdx] === parsedData2.interNodeBandwidths.nodes[cIdx]) {
+                    localBw2.push(val);
+                } else {
+                    remoteBw2.push(val);
+                }
+            });
+        });
+
+        const avgLocalBw1 = localBw1.length > 0 ? localBw1.reduce((a, b) => a + b, 0) / localBw1.length : 0;
+        const avgRemoteBw1 = remoteBw1.length > 0 ? remoteBw1.reduce((a, b) => a + b, 0) / remoteBw1.length : 0;
+        const avgLocalBw2 = localBw2.length > 0 ? localBw2.reduce((a, b) => a + b, 0) / localBw2.length : 0;
+        const avgRemoteBw2 = remoteBw2.length > 0 ? remoteBw2.reduce((a, b) => a + b, 0) / remoteBw2.length : 0;
+
+        const interpretation = createInterpretation(`
+            <div class="comparison-container">
+                <div class="comparison-column">
+                    <strong>数据集1:</strong><br>
+                    平均本地NUMA节点访问带宽: ${(avgLocalBw1 / 1024).toFixed(1)} GB/s<br>
+                    平均远程NUMA节点访问带宽: ${(avgRemoteBw1 / 1024).toFixed(1)} GB/s
+                </div>
+                <div class="comparison-column">
+                    <strong>数据集2:</strong><br>
+                    平均本地NUMA节点访问带宽: ${(avgLocalBw2 / 1024).toFixed(1)} GB/s<br>
+                    平均远程NUMA节点访问带宽: ${(avgRemoteBw2 / 1024).toFixed(1)} GB/s
+                </div>
+            </div>
+            <div class="diff-analysis">
+                <strong>差异分析:</strong><br>
+                本地访问带宽差异: ${Math.abs(avgLocalBw1 - avgLocalBw2).toFixed(1)} GB/s (${((Math.abs(avgLocalBw1 - avgLocalBw2) / Math.min(avgLocalBw1, avgLocalBw2)) * 100).toFixed(1)}%)<br>
+                远程访问带宽差异: ${Math.abs(avgRemoteBw1 - avgRemoteBw2).toFixed(1)} GB/s (${((Math.abs(avgRemoteBw1 - avgRemoteBw2) / Math.min(avgRemoteBw1, avgRemoteBw2)) * 100).toFixed(1)}%)
+            </div>
+        `);
+        section.appendChild(interpretation);
+    }
+
+    // 4. Loaded Latencies (Line Chart)
+    if (parsedData1.loadedLatencies && parsedData2.loadedLatencies) {
+        const section = createSection(reportContainer, "4. 系统负载状态下延迟与带宽 (只读) 对比");
+        const canvasId = "loadedLatencyChart";
+        const canvasContainer = document.createElement('div');
+        canvasContainer.className = 'chart-container';
+        canvasContainer.style.height = '400px';
+        const canvas = createCanvas(canvasContainer, canvasId);
+        section.appendChild(canvasContainer);
+
+        chartsLocal[canvasId] = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: parsedData1.loadedLatencies.map(item => item.delay),
+                datasets: [
+                    {
+                        label: '数据集1 延迟 (ns)',
+                        data: parsedData1.loadedLatencies.map(item => item.latency),
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '数据集1 带宽 (GB/s)',
+                        data: parsedData1.loadedLatencies.map(item => item.bandwidth / 1024),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        yAxisID: 'y1'
+                    },
+                    {
+                        label: '数据集2 延迟 (ns)',
+                        data: parsedData2.loadedLatencies.map(item => item.latency),
+                        borderColor: 'rgba(255, 159, 64, 1)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '数据集2 带宽 (GB/s)',
+                        data: parsedData2.loadedLatencies.map(item => item.bandwidth / 1024),
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    datalabels: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        min: 0,
+                        title: {
+                            display: true,
+                            text: '延迟 (ns)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: 0,
+                        title: {
+                            display: true,
+                            text: '带宽 (GB/s)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // 添加负载状态下的性能对比分析
+        let maxLatency1 = Math.max(...parsedData1.loadedLatencies.map(item => item.latency));
+        let maxLatency2 = Math.max(...parsedData2.loadedLatencies.map(item => item.latency));
+        let maxBandwidth1 = Math.max(...parsedData1.loadedLatencies.map(item => item.bandwidth / 1024));
+        let maxBandwidth2 = Math.max(...parsedData2.loadedLatencies.map(item => item.bandwidth / 1024));
+
+        const interpretation = createInterpretation(`
+            <strong>负载状态性能对比:</strong><br>
+            最大延迟对比: ${maxLatency1.toFixed(1)} vs ${maxLatency2.toFixed(1)} ns (差异: ${Math.abs(maxLatency1 - maxLatency2).toFixed(1)} ns, ${((Math.abs(maxLatency1 - maxLatency2) / Math.min(maxLatency1, maxLatency2)) * 100).toFixed(1)}%)<br>
+            最大带宽对比: ${maxBandwidth1.toFixed(1)} vs ${maxBandwidth2.toFixed(1)} GB/s (差异: ${Math.abs(maxBandwidth1 - maxBandwidth2).toFixed(1)} GB/s, ${((Math.abs(maxBandwidth1 - maxBandwidth2) / Math.min(maxBandwidth1, maxBandwidth2)) * 100).toFixed(1)}%)
+        `);
+        section.appendChild(interpretation);
+    }
+
+    // 5. Cache-to-Cache Transfer Latency (Heatmap Tables)
+    if (parsedData1.cacheToCache && parsedData2.cacheToCache) {
+        const section = createSection(reportContainer, "5. 缓存到缓存传输延迟 (ns) - 对比");
+        
+        // 创建对比容器
+        const comparisonContainer = document.createElement('div');
+        comparisonContainer.className = 'comparison-container';
+        
+        // 数据集1的缓存延迟信息
+        const data1Container = document.createElement('div');
+        data1Container.className = 'comparison-column';
+        let c2cText1 = "<strong>数据集1:</strong><br>";
+        if (!isNaN(parsedData1.cacheToCache.localHit)) {
+            c2cText1 += `本地插槽 L2->L2 HIT 延迟: ${parsedData1.cacheToCache.localHit.toFixed(1)} ns<br>`;
+        }
+        if (!isNaN(parsedData1.cacheToCache.localHitm)) {
+            c2cText1 += `本地插槽 L2->L2 HITM 延迟: ${parsedData1.cacheToCache.localHitm.toFixed(1)} ns`;
+        }
+        data1Container.innerHTML = c2cText1;
+        comparisonContainer.appendChild(data1Container);
+
+        // 数据集2的缓存延迟信息
+        const data2Container = document.createElement('div');
+        data2Container.className = 'comparison-column';
+        let c2cText2 = "<strong>数据集2:</strong><br>";
+        if (!isNaN(parsedData2.cacheToCache.localHit)) {
+            c2cText2 += `本地插槽 L2->L2 HIT 延迟: ${parsedData2.cacheToCache.localHit.toFixed(1)} ns<br>`;
+        }
+        if (!isNaN(parsedData2.cacheToCache.localHitm)) {
+            c2cText2 += `本地插槽 L2->L2 HITM 延迟: ${parsedData2.cacheToCache.localHitm.toFixed(1)} ns`;
+        }
+        data2Container.innerHTML = c2cText2;
+        comparisonContainer.appendChild(data2Container);
+        
+        section.appendChild(comparisonContainer);
+
+        // 添加差异分析
+        const diffAnalysis = document.createElement('div');
+        diffAnalysis.className = 'diff-analysis';
+        let diffText = "<strong>差异分析:</strong><br>";
+        
+        if (!isNaN(parsedData1.cacheToCache.localHit) && !isNaN(parsedData2.cacheToCache.localHit)) {
+            const hitDiff = Math.abs(parsedData1.cacheToCache.localHit - parsedData2.cacheToCache.localHit);
+            const hitPercentDiff = (hitDiff / Math.min(parsedData1.cacheToCache.localHit, parsedData2.cacheToCache.localHit)) * 100;
+            diffText += `L2->L2 HIT 延迟差异: ${hitDiff.toFixed(1)} ns (${hitPercentDiff.toFixed(1)}%)<br>`;
+        }
+        
+        if (!isNaN(parsedData1.cacheToCache.localHitm) && !isNaN(parsedData2.cacheToCache.localHitm)) {
+            const hitmDiff = Math.abs(parsedData1.cacheToCache.localHitm - parsedData2.cacheToCache.localHitm);
+            const hitmPercentDiff = (hitmDiff / Math.min(parsedData1.cacheToCache.localHitm, parsedData2.cacheToCache.localHitm)) * 100;
+            diffText += `L2->L2 HITM 延迟差异: ${hitmDiff.toFixed(1)} ns (${hitmPercentDiff.toFixed(1)}%)`;
+        }
+        
+        diffAnalysis.innerHTML = diffText;
+        section.appendChild(diffAnalysis);
+
+        // 处理远程缓存传输延迟矩阵
+        const processCacheMatrix = (matrixData1, matrixData2, title, isWriterHomed) => {
+            if (matrixData1 && matrixData2) {
+                const subTitle = document.createElement('h3');
+                subTitle.textContent = title;
+                subTitle.style.fontSize = "1.1em";
+                subTitle.style.marginTop = "15px";
+                section.appendChild(subTitle);
+
+                // 创建两个热力图的容器
+                const tablesContainer = document.createElement('div');
+                tablesContainer.style.display = 'flex';
+                tablesContainer.style.gap = '20px';
+                tablesContainer.style.marginBottom = '20px';
+
+                // 数据集1的热力图
+                const tableContainer1 = document.createElement('div');
+                tableContainer1.className = 'chart-container';
+                tableContainer1.style.flex = '1';
+                const table1 = createHeatmapTable(
+                    matrixData1.nodes,
+                    matrixData1.matrix,
+                    "读取者NUMA",
+                    "写入者NUMA",
+                    true,
+                    "数据集1"
+                );
+                tableContainer1.appendChild(table1);
+                tablesContainer.appendChild(tableContainer1);
+
+                // 数据集2的热力图
+                const tableContainer2 = document.createElement('div');
+                tableContainer2.className = 'chart-container';
+                tableContainer2.style.flex = '1';
+                const table2 = createHeatmapTable(
+                    matrixData2.nodes,
+                    matrixData2.matrix,
+                    "读取者NUMA",
+                    "写入者NUMA",
+                    true,
+                    "数据集2"
+                );
+                tableContainer2.appendChild(table2);
+                tablesContainer.appendChild(tableContainer2);
+
+                section.appendChild(tablesContainer);
+            }
+        };
+
+        processCacheMatrix(
+            parsedData1.cacheToCache.remoteHitmWriterHomed,
+            parsedData2.cacheToCache.remoteHitmWriterHomed,
+            "远程插槽 L2->L2 HITM 延迟 (数据地址归属于写入者插槽)",
+            true
+        );
+        processCacheMatrix(
+            parsedData1.cacheToCache.remoteHitmReaderHomed,
+            parsedData2.cacheToCache.remoteHitmReaderHomed,
+            "远程插槽 L2->L2 HITM 延迟 (数据地址归属于读取者插槽)",
+            false
+        );
+    }
+
+    return chartsLocal;
+}
+
+function createHeatmapTable(nodes, matrix, rowLabel, colLabel, isLatency = false, title = "", min = null, max = null) {
+    const table = document.createElement('table');
+    table.className = 'heatmap-table';
+    
+    // 创建标题行
+    if (title) {
+        const titleRow = document.createElement('tr');
+        const titleCell = document.createElement('th');
+        titleCell.colSpan = nodes.length + 1;
+        titleCell.textContent = title;
+        titleCell.style.textAlign = 'center';
+        titleCell.style.backgroundColor = '#f8f9fa';
+        titleRow.appendChild(titleCell);
+        table.appendChild(titleRow);
+    }
+
+    // 创建表头
+    const headerRow = document.createElement('tr');
+    const cornerCell = document.createElement('th');
+    cornerCell.textContent = `${rowLabel} \\ ${colLabel}`;
+    headerRow.appendChild(cornerCell);
+    nodes.forEach(node => {
+        const th = document.createElement('th');
+        th.textContent = node;
+        headerRow.appendChild(th);
+    });
+    table.appendChild(headerRow);
+
+    // 计算全局最大最小值
+    let globalMin = min !== null ? min : Infinity;
+    let globalMax = max !== null ? max : -Infinity;
+    if (min === null || max === null) {
+        matrix.forEach(row => {
+            row.forEach(val => {
+                if (!isNaN(val)) {
+                    globalMin = Math.min(globalMin, val);
+                    globalMax = Math.max(globalMax, val);
+                }
+            });
+        });
+    }
+
+    // 创建数据行
+    matrix.forEach((row, rIdx) => {
+        const tr = document.createElement('tr');
+        const rowHeader = document.createElement('th');
+        rowHeader.textContent = nodes[rIdx];
+        tr.appendChild(rowHeader);
+        
+        row.forEach(val => {
+            const td = document.createElement('td');
+            if (isNaN(val)) {
+                td.textContent = 'N/A';
+                td.className = 'na';
+            } else {
+                td.textContent = isLatency ? val.toFixed(1) : (val / 1024).toFixed(1);
+                // 使用全局最大最小值计算颜色
+                const normalizedValue = (val - globalMin) / (globalMax - globalMin);
+                const color = getColorForValue(normalizedValue);
+                td.style.backgroundColor = color;
+                td.className = isDarkColor(color) ? 'dark-bg-text' : 'light-bg-text';
+            }
+            tr.appendChild(td);
+        });
+        table.appendChild(tr);
+    });
+
+    // 添加颜色图例
+    const legendRow = document.createElement('tr');
+    const legendCell = document.createElement('td');
+    legendCell.colSpan = nodes.length + 1;
+    legendCell.style.padding = '10px';
+    legendCell.style.textAlign = 'center';
+    
+    const legend = document.createElement('div');
+    legend.style.display = 'flex';
+    legend.style.justifyContent = 'center';
+    legend.style.alignItems = 'center';
+    legend.style.gap = '5px';
+    
+    // 创建渐变色条
+    const gradientBar = document.createElement('div');
+    gradientBar.style.width = '200px';
+    gradientBar.style.height = '20px';
+    gradientBar.style.background = 'linear-gradient(to right, rgb(18, 194, 233), rgb(196, 113, 237), rgb(246, 79, 89))';
+    gradientBar.style.borderRadius = '3px';
+    
+    // 添加最小值和最大值标签
+    const minLabel = document.createElement('span');
+    minLabel.textContent = isLatency ? `${globalMin.toFixed(1)} ns` : `${(globalMin / 1024).toFixed(1)} GB/s`;
+    
+    const maxLabel = document.createElement('span');
+    maxLabel.textContent = isLatency ? `${globalMax.toFixed(1)} ns` : `${(globalMax / 1024).toFixed(1)} GB/s`;
+    
+    legend.appendChild(minLabel);
+    legend.appendChild(gradientBar);
+    legend.appendChild(maxLabel);
+    
+    legendCell.appendChild(legend);
+    legendRow.appendChild(legendCell);
+    table.appendChild(legendRow);
+
+    return table;
+}
+
+function getColorForValue(value) {
+    // 使用新的渐变色方案
+    // 从 rgb(18, 194, 233) -> rgb(196, 113, 237) -> rgb(246, 79, 89)
+    if (value <= 0.5) {
+        // 第一段渐变：rgb(18, 194, 233) -> rgb(196, 113, 237)
+        const r = Math.round(18 + (196 - 18) * (value * 2));
+        const g = Math.round(194 + (113 - 194) * (value * 2));
+        const b = Math.round(233 + (237 - 233) * (value * 2));
+        return `rgb(${r}, ${g}, ${b})`;
+    } else {
+        // 第二段渐变：rgb(196, 113, 237) -> rgb(246, 79, 89)
+        const normalizedValue = (value - 0.5) * 2;
+        const r = Math.round(196 + (246 - 196) * normalizedValue);
+        const g = Math.round(113 + (79 - 113) * normalizedValue);
+        const b = Math.round(237 + (89 - 237) * normalizedValue);
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+}
+
+function isDarkColor(color) {
+    // 将颜色字符串转换为RGB值
+    const rgb = color.match(/\d+/g);
+    if (!rgb) return false;
+    
+    // 计算颜色的亮度
+    // 使用相对亮度公式：0.299*R + 0.587*G + 0.114*B
+    const brightness = (parseInt(rgb[0]) * 0.299 + parseInt(rgb[1]) * 0.587 + parseInt(rgb[2]) * 0.114) / 255;
+    
+    // 如果亮度小于0.5，认为是深色
+    return brightness < 0.5;
 } 
