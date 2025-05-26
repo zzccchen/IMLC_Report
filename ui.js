@@ -512,6 +512,30 @@ function displayMLCComparisonReport(parsedData1, parsedData2, reportContainer, c
     if (parsedData1.interNodeBandwidths && parsedData2.interNodeBandwidths) {
         const section = createSection(reportContainer, "3. 系统内节点间内存带宽 (GB/s, 只读) - 热力图对比");
         
+        // 计算两个数据集的全局最大最小值
+        let globalMin = Infinity;
+        let globalMax = -Infinity;
+        
+        // 处理数据集1
+        parsedData1.interNodeBandwidths.matrix.forEach(row => {
+            row.forEach(val => {
+                if (!isNaN(val)) {
+                    globalMin = Math.min(globalMin, val);
+                    globalMax = Math.max(globalMax, val);
+                }
+            });
+        });
+        
+        // 处理数据集2
+        parsedData2.interNodeBandwidths.matrix.forEach(row => {
+            row.forEach(val => {
+                if (!isNaN(val)) {
+                    globalMin = Math.min(globalMin, val);
+                    globalMax = Math.max(globalMax, val);
+                }
+            });
+        });
+        
         // 创建两个热力图的容器
         const tablesContainer = document.createElement('div');
         tablesContainer.style.display = 'flex';
@@ -528,7 +552,9 @@ function displayMLCComparisonReport(parsedData1, parsedData2, reportContainer, c
             "源NUMA节点",
             "目标NUMA节点",
             false,
-            "数据集1"
+            "数据集1",
+            globalMin,
+            globalMax
         );
         tableContainer1.appendChild(table1);
         tablesContainer.appendChild(tableContainer1);
@@ -543,7 +569,9 @@ function displayMLCComparisonReport(parsedData1, parsedData2, reportContainer, c
             "源NUMA节点",
             "目标NUMA节点",
             false,
-            "数据集2"
+            "数据集2",
+            globalMin,
+            globalMax
         );
         tableContainer2.appendChild(table2);
         tablesContainer.appendChild(tableContainer2);
@@ -736,26 +764,6 @@ function displayMLCComparisonReport(parsedData1, parsedData2, reportContainer, c
         
         section.appendChild(comparisonContainer);
 
-        // 添加差异分析
-        const diffAnalysis = document.createElement('div');
-        diffAnalysis.className = 'diff-analysis';
-        let diffText = "<strong>差异分析:</strong><br>";
-        
-        if (!isNaN(parsedData1.cacheToCache.localHit) && !isNaN(parsedData2.cacheToCache.localHit)) {
-            const hitDiff = Math.abs(parsedData1.cacheToCache.localHit - parsedData2.cacheToCache.localHit);
-            const hitPercentDiff = (hitDiff / Math.min(parsedData1.cacheToCache.localHit, parsedData2.cacheToCache.localHit)) * 100;
-            diffText += `L2->L2 HIT 延迟差异: ${hitDiff.toFixed(1)} ns (${hitPercentDiff.toFixed(1)}%)<br>`;
-        }
-        
-        if (!isNaN(parsedData1.cacheToCache.localHitm) && !isNaN(parsedData2.cacheToCache.localHitm)) {
-            const hitmDiff = Math.abs(parsedData1.cacheToCache.localHitm - parsedData2.cacheToCache.localHitm);
-            const hitmPercentDiff = (hitmDiff / Math.min(parsedData1.cacheToCache.localHitm, parsedData2.cacheToCache.localHitm)) * 100;
-            diffText += `L2->L2 HITM 延迟差异: ${hitmDiff.toFixed(1)} ns (${hitmPercentDiff.toFixed(1)}%)`;
-        }
-        
-        diffAnalysis.innerHTML = diffText;
-        section.appendChild(diffAnalysis);
-
         // 处理远程缓存传输延迟矩阵
         const processCacheMatrix = (matrixData1, matrixData2, title, isWriterHomed) => {
             if (matrixData1 && matrixData2) {
@@ -764,6 +772,30 @@ function displayMLCComparisonReport(parsedData1, parsedData2, reportContainer, c
                 subTitle.style.fontSize = "1.1em";
                 subTitle.style.marginTop = "15px";
                 section.appendChild(subTitle);
+
+                // 计算两个数据集的全局最大最小值
+                let globalMin = Infinity;
+                let globalMax = -Infinity;
+                
+                // 处理数据集1
+                matrixData1.matrix.forEach(row => {
+                    row.forEach(val => {
+                        if (!isNaN(val)) {
+                            globalMin = Math.min(globalMin, val);
+                            globalMax = Math.max(globalMax, val);
+                        }
+                    });
+                });
+                
+                // 处理数据集2
+                matrixData2.matrix.forEach(row => {
+                    row.forEach(val => {
+                        if (!isNaN(val)) {
+                            globalMin = Math.min(globalMin, val);
+                            globalMax = Math.max(globalMax, val);
+                        }
+                    });
+                });
 
                 // 创建两个热力图的容器
                 const tablesContainer = document.createElement('div');
@@ -781,7 +813,9 @@ function displayMLCComparisonReport(parsedData1, parsedData2, reportContainer, c
                     "读取者NUMA",
                     "写入者NUMA",
                     true,
-                    "数据集1"
+                    "数据集1",
+                    globalMin,
+                    globalMax
                 );
                 tableContainer1.appendChild(table1);
                 tablesContainer.appendChild(tableContainer1);
@@ -796,7 +830,9 @@ function displayMLCComparisonReport(parsedData1, parsedData2, reportContainer, c
                     "读取者NUMA",
                     "写入者NUMA",
                     true,
-                    "数据集2"
+                    "数据集2",
+                    globalMin,
+                    globalMax
                 );
                 tableContainer2.appendChild(table2);
                 tablesContainer.appendChild(tableContainer2);
@@ -880,7 +916,7 @@ function createHeatmapTable(nodes, matrix, rowLabel, colLabel, isLatency = false
                 td.textContent = isLatency ? val.toFixed(1) : (val / 1024).toFixed(1);
                 // 使用全局最大最小值计算颜色
                 const normalizedValue = (val - globalMin) / (globalMax - globalMin);
-                const color = getColorForValue(normalizedValue);
+                const color = getColorForValue(normalizedValue, isLatency);
                 td.style.backgroundColor = color;
                 td.className = isDarkColor(color) ? 'dark-bg-text' : 'light-bg-text';
             }
@@ -916,9 +952,16 @@ function createHeatmapTable(nodes, matrix, rowLabel, colLabel, isLatency = false
     const maxLabel = document.createElement('span');
     maxLabel.textContent = isLatency ? `${globalMax.toFixed(1)} ns` : `${(globalMax / 1024).toFixed(1)} GB/s`;
     
-    legend.appendChild(minLabel);
-    legend.appendChild(gradientBar);
-    legend.appendChild(maxLabel);
+    // 对于延迟值，需要交换最小值和最大值的显示位置
+    if (isLatency) {
+        legend.appendChild(maxLabel);
+        legend.appendChild(gradientBar);
+        legend.appendChild(minLabel);
+    } else {
+        legend.appendChild(minLabel);
+        legend.appendChild(gradientBar);
+        legend.appendChild(maxLabel);
+    }
     
     legendCell.appendChild(legend);
     legendRow.appendChild(legendCell);
@@ -927,9 +970,14 @@ function createHeatmapTable(nodes, matrix, rowLabel, colLabel, isLatency = false
     return table;
 }
 
-function getColorForValue(value) {
+function getColorForValue(value, isLatency = false) {
     // 使用新的渐变色方案
     // 从 rgb(18, 194, 233) -> rgb(196, 113, 237) -> rgb(246, 79, 89)
+    // 对于延迟值，需要反转颜色顺序
+    if (isLatency) {
+        value = 1 - value; // 反转值
+    }
+    
     if (value <= 0.5) {
         // 第一段渐变：rgb(18, 194, 233) -> rgb(196, 113, 237)
         const r = Math.round(18 + (196 - 18) * (value * 2));
