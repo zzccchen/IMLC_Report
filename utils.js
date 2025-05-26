@@ -160,22 +160,25 @@ function createHeatmapTable(nodes, matrixData, rowHeaderPrefix, colHeaderPrefix,
     container.style.display = 'flex';
     container.style.flexDirection = 'row';
     container.style.alignItems = 'center';
-    container.style.marginLeft = '60px'; // 为Y轴标题留出空间
+    container.style.marginLeft = '80px'; // 增加左边距，为Y轴标题留出更多空间
+    container.style.justifyContent = 'center'; // 添加水平居中
 
     // 创建Y轴标题
     const yAxisTitle = document.createElement('div');
     yAxisTitle.textContent = rowHeaderPrefix;
     yAxisTitle.style.transform = 'rotate(-90deg)';
     yAxisTitle.style.position = 'absolute';
-    yAxisTitle.style.left = '-50px';
+    yAxisTitle.style.left = '-70px'; // 将Y轴标题向左移动
     yAxisTitle.style.top = '50%';
     yAxisTitle.style.fontWeight = 'bold';
+    yAxisTitle.style.whiteSpace = 'nowrap'; // 防止文字换行
 
     // 创建X轴标题容器
     const xAxisContainer = document.createElement('div');
     xAxisContainer.style.display = 'flex';
     xAxisContainer.style.flexDirection = 'column';
     xAxisContainer.style.alignItems = 'center';
+    xAxisContainer.style.width = '100%'; // 添加宽度100%以确保居中效果
 
     // 创建X轴标题
     const xAxisTitle = document.createElement('div');
