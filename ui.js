@@ -942,7 +942,7 @@ function createHeatmapTable(nodes, matrix, rowLabel, colLabel, isLatency = false
     const gradientBar = document.createElement('div');
     gradientBar.style.width = '200px';
     gradientBar.style.height = '20px';
-    gradientBar.style.background = 'linear-gradient(to right, rgb(18, 194, 233), rgb(196, 113, 237), rgb(246, 79, 89))';
+    gradientBar.style.background = 'linear-gradient(to right, rgb(246, 79, 89), rgb(196, 113, 237), rgb(18, 194, 233))';
     gradientBar.style.borderRadius = '3px';
     
     // 添加最小值和最大值标签
@@ -974,8 +974,11 @@ function getColorForValue(value, isLatency = false) {
     // 使用新的渐变色方案
     // 从 rgb(18, 194, 233) -> rgb(196, 113, 237) -> rgb(246, 79, 89)
     // 对于延迟值，需要反转颜色顺序
-    if (isLatency) {
+    if (!isLatency) {
         value = 1 - value; // 反转值
+    }
+    else{
+        value = value;
     }
     
     if (value <= 0.5) {
