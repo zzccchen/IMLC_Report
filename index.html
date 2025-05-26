@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLC 测试结果可视化报告</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js" charset="utf-8"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>MLC 测试结果可视化报告</h1>
+        <p>请将 Intel(R) Memory Latency Checker (MLC) 的完整输出粘贴到下面的文本框中：</p>
+        <textarea id="mlcOutput" rows="15" placeholder="在此处粘贴 MLC 输出..."></textarea>
+        <button id="generateReportBtn">生成报告</button>
+        <div id="reportContainer">
+            <!-- 图表将在此处动态生成 -->
+            <section id="idleLatenciesSection" class="report-section" style="display:none;">
+                <h2>内存空闲延迟 (ns) - 随机访问</h2>
+                <div id="idleLatenciesChart"></div>
+            </section>
+
+            <section id="peakBandwidthsSection" class="report-section" style="display:none;">
+                <h2>系统峰值内存带宽 (MB/sec)</h2>
+                <div id="peakBandwidthsChart"></div>
+            </section>
+
+            <section id="nodeBandwidthsSection" class="report-section" style="display:none;">
+                <h2>节点间内存带宽 (MB/sec) - 只读</h2>
+                <div id="nodeBandwidthsChart"></div>
+            </section>
+
+            <section id="loadedLatenciesSection" class="report-section" style="display:none;">
+                <h2>系统加载延迟</h2>
+                <div id="loadedLatenciesChart"></div>
+                <div id="loadedBandwidthsChart"></div>
+            </section>
+
+            <section id="cacheToCacheSection" class="report-section" style="display:none;">
+                <h2>Cache-to-Cache 传输延迟 (ns)</h2>
+                <div id="localCacheLatency"></div>
+                <h3>远端 Socket L2->L2 HITM 延迟 (数据地址归属于写入方 Socket)</h3>
+                <div id="remoteCacheHitmW_Chart"></div>
+                <h3>远端 Socket L2->L2 HITM 延迟 (数据地址归属于读取方 Socket)</h3>
+                <div id="remoteCacheHitmR_Chart"></div>
+            </section>
+        </div>
+    </div>
+    <script src="idleLatencies.js"></script>
+    <script src="peakBandwidths.js"></script>
+    <script src="nodeBandwidths.js"></script>
+    <script src="loadedLatencies.js"></script>
+    <script src="cacheToCache.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 
