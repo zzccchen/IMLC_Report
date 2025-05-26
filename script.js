@@ -84,22 +84,45 @@ document.addEventListener('DOMContentLoaded', () => {
     function parsePeakBandwidths(lines, startIndex, targetObject) {
         let i = startIndex;
         while (i < lines.length) {
-            if (lines[i].includes('ALL Reads')) {
-                const parts = lines[i].split(':');
-                targetObject.labels.push(parts[0].trim());
-                targetObject.values.push(parseFloat(parts[1].trim()));
-            } else if (lines[i].match(/^\d+:\d+ Reads-Writes/)) {
-                const parts = lines[i].split(':');
-                targetObject.labels.push(parts[0].trim());
-                targetObject.values.push(parseFloat(parts[1].trim()));
-            } else if (lines[i].includes('Stream-triad like')) {
-                const parts = lines[i].split(':');
-                targetObject.labels.push(parts[0].trim());
-                targetObject.values.push(parseFloat(parts[1].trim()));
-                break; // Last item in this section
+            const currentLine = lines[i];
+            let parsedThisLine = false;
+
+            if (currentLine.includes('ALL Reads') || 
+                currentLine.match(/^\d+:\d+ Reads-Writes/) || 
+                currentLine.includes('Stream-triad like')) {
+                
+                const lastColonIndex = currentLine.lastIndexOf(':');
+                if (lastColonIndex > -1) {
+                    const label = currentLine.substring(0, lastColonIndex).trim();
+                    // Extract value: take part after colon, trim, then take first part if there are units like "MB/s"
+                    const valueString = currentLine.substring(lastColonIndex + 1).trim().split(/\s+/)[0];
+                    const value = parseFloat(valueString);
+                    
+                    if (!isNaN(value)) {
+                        targetObject.labels.push(label);
+                        targetObject.values.push(value);
+                        parsedThisLine = true;
+                    } else {
+                        console.warn(`PeakBandwidths: Failed to parse numeric value for label "${label}" from "${currentLine.substring(lastColonIndex + 1).trim()}"`);
+                    }
+                } else {
+                     console.warn(`PeakBandwidths: Colon delimiter not found in expected data line: "${currentLine}"`);
+                }
+
+                if (currentLine.includes('Stream-triad like')) {
+                    break; // This is typically the last item in this section
+                }
+            } else if (targetObject.labels.length > 0 && currentLine.trim() !== '' && !currentLine.startsWith('-') && !currentLine.toLowerCase().includes('memory bandwidths')) {
+                // If we have already parsed some data and the current line doesn't look like part of this data set,
+                // (e.g. not empty, not a separator, not another header) it's likely the end of the section.
+                // This helps prevent reading into subsequent unrelated data if "Stream-triad like" is missing.
+                // console.log(`PeakBandwidths: Stopping, encountered non-data line after collecting some data: "${currentLine}"`);
+                break; 
             }
+            
             i++;
         }
+        console.log("Parsed peakBandwidths in parsePeakBandwidths:", JSON.stringify(targetObject));
         return i;
     }
 
