@@ -99,116 +99,83 @@ function parseMatrixSection(lines, header1Keyword, header2Keyword) {
     const matrix = [];
     let nodes = [];
     let dataStartIndex = -1;
-    let headerLineIndex = -1;
 
+    // 查找包含节点编号的标题行
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line === "" || line.startsWith("===") || line.startsWith("---N")) continue;
 
-        // Try to find a line that contains column headers (NUMA nodes)
-        // Regex looks for multiple numbers separated by spaces, possibly after header keywords.
-        const nodeHeaderRegex = new RegExp(`(?:${header1Keyword}|${header2Keyword}|Socket|Node|From\\\\To|Reader Numa Node|Writer Numa Node)?\\s*((?:\\s*\\d+\\s*)+)$`, 'i');
+        // 匹配包含节点编号的行
+        const nodeHeaderRegex = /(?:Numa node|Reader Numa Node|Writer Numa Node)\s+((?:\s*\d+\s*)+)$/i;
         const nodeMatch = line.match(nodeHeaderRegex);
 
         if (nodeMatch && nodeMatch[1]) {
-            const potentialNodes = nodeMatch[1].trim().split(/\\s+/).map(n => parseInt(n)).filter(n => !isNaN(n));
-            if (potentialNodes.length > 0) {
-                nodes = potentialNodes;
-                headerLineIndex = i;
+            nodes = nodeMatch[1].trim().split(/\s+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+            if (nodes.length > 0) {
                 dataStartIndex = i + 1;
-                // Skip separator line if present
-                if (lines[dataStartIndex] && (lines[dataStartIndex].trim().match(/^[-=]+$/) || lines[dataStartIndex].trim().includes("latency") || lines[dataStartIndex].trim().includes("Bandwidth"))) {
+                // 跳过分隔行
+                if (lines[dataStartIndex] && lines[dataStartIndex].trim().match(/^[-=]+$/)) {
                     dataStartIndex++;
-                }
-                break; // Found header, proceed to data parsing
-            }
-        }
-    }
-    
-    // Fallback if nodes array is still empty (e.g. headers like "Reader Numa Node   0      1   ")
-    if (nodes.length === 0) {
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if(line.toLowerCase().includes(header1Keyword.toLowerCase()) || line.toLowerCase().includes(header2Keyword.toLowerCase())){
-                 const parts = line.split(/\\s+/);
-                 const potentialNodes = parts.slice(1).map(p => parseInt(p)).filter(p => !isNaN(p));
-                 if(potentialNodes.length > 0){
-                     nodes = potentialNodes;
-                     headerLineIndex = i;
-                     dataStartIndex = i + 1;
-                     if (lines[dataStartIndex] && lines[dataStartIndex].trim().match(/^[-=]+$/)) dataStartIndex++;
-                     break;
-                 }
-            }
-        }
-    }
-
-    if (dataStartIndex === -1) { // No clear header or data start found
-        // Try to find the first line that looks like data (NodeID val val val ...)
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            const parts = line.split(/\\s+/).filter(p => p !== "");
-            if (parts.length > 1 && parts[0].match(/^\\d+$/) && (parts.slice(1).every(p => !isNaN(parseFloat(p)) || p === '-' || p === 'N/A'))) {
-                dataStartIndex = i;
-                // Infer nodes if not found
-                if (nodes.length === 0) {
-                    nodes = Array.from({length: parts.length - 1}, (_, k) => k);
                 }
                 break;
             }
         }
-        if (dataStartIndex === -1 && lines.some(l => l.match(/[-\d.]+/))) { // if still no start, but some numbers exist, assume data starts from line 0 and nodes are 0,1,2...
-            dataStartIndex = 0;
+    }
+
+    // 如果没有找到节点编号，尝试从数据行推断
+    if (nodes.length === 0) {
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line === "" || line.startsWith("===") || line.startsWith("---N")) continue;
+            
+            const parts = line.split(/\s+/).filter(p => p !== "");
+            if (parts.length > 1 && !isNaN(parseInt(parts[0]))) {
+                nodes = Array.from({ length: parts.length - 1 }, (_, k) => k);
+                dataStartIndex = i;
+                break;
+            }
         }
     }
 
+    // 解析矩阵数据
     if (dataStartIndex !== -1) {
         for (let i = dataStartIndex; i < lines.length; i++) {
             const line = lines[i].trim();
             if (line === "" || line.startsWith("===") || line.startsWith("---N")) {
-                if (matrix.length > 0) break; // Stop if we have some matrix data and hit a separator/empty line
-                else continue;
+                if (matrix.length > 0) break;
+                continue;
             }
             if (line.toLowerCase().includes("average") || line.toLowerCase().includes("total")) continue;
 
-            const parts = line.split(/\\s+/).filter(p => p !== "");
-            let rowData = [];
+            const parts = line.split(/\s+/).filter(p => p !== "");
+            if (parts.length > 1) {
+                // 检查第一个部分是否为数字（行节点ID）
+                if (parts[0].match(/^\d+$/)) {
+                    const rowData = parts.slice(1).map(val => {
+                        if (val === '-' || val === 'N/A') return NaN;
+                        const num = parseFloat(val);
+                        return isNaN(num) ? NaN : num;
+                    });
 
-            // Check if the first part is a number (likely the row's NUMA node ID)
-            if (parts.length > 0 && parts[0].match(/^\\d+$/)) {
-                //const rowNodeId = parseInt(parts[0]);
-                rowData = parts.slice(1).map(val => (val === '-' || val === 'N/A') ? NaN : parseFloat(val));
-            } else if (parts.length > 0 && parts.every(p => !isNaN(parseFloat(p)) || p === '-' || p === 'N/A')) {
-                // No explicit row header node, all parts are data
-                rowData = parts.map(val => (val === '-' || val === 'N/A') ? NaN : parseFloat(val));
-            }
-
-            if (rowData.length > 0) {
-                if (nodes.length === 0) { // Infer nodes from the first valid data row if not found in header
-                    nodes = Array.from({ length: rowData.length }, (_, k) => k);
-                }
-                // Ensure rowData matches the number of node columns, truncate if necessary
-                if (rowData.length > nodes.length && nodes.length > 0) {
-                    matrix.push(rowData.slice(0, nodes.length));
-                } else if (rowData.length === nodes.length) {
-                    matrix.push(rowData);
+                    if (rowData.length > 0) {
+                        // 确保行数据长度与节点数量匹配
+                        if (rowData.length === nodes.length) {
+                            matrix.push(rowData);
+                        } else if (rowData.length > nodes.length && nodes.length > 0) {
+                            matrix.push(rowData.slice(0, nodes.length));
+                        }
+                    }
                 }
             }
         }
     }
-    
-    // Final validation: if nodes were inferred but matrix columns differ, adjust nodes
-    if (matrix.length > 0 && matrix[0].length > 0 && nodes.length !== matrix[0].length) {
-        if (nodes.every((val, index) => val === index)) { // Check if nodes are default 0,1,2...
-             nodes = Array.from({length: matrix[0].length}, (_, k) => k);
-        } else {
-            console.warn("Mismatch between parsed node headers and matrix columns. Matrix columns will be prioritized for node count if nodes were default.", header1Keyword, nodes, matrix[0]);
-        }
-    }
-    // Filter matrix again to ensure all rows match the final node count
-    const finalMatrix = matrix.filter(row => row.length === nodes.length);
 
-    return { nodes, matrix: finalMatrix };
+    // 确保矩阵维度正确
+    if (matrix.length !== nodes.length) {
+        console.warn(`Matrix dimensions mismatch: expected ${nodes.length}x${nodes.length}, got ${matrix.length}x${matrix[0]?.length || 0}`);
+    }
+
+    return { nodes, matrix };
 }
 
 function parsePeakBandwidths(lines) {

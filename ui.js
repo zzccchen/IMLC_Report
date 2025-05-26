@@ -42,10 +42,11 @@ function displayMLCReport(parsedData, reportContainer, charts) {
 
     // 2. Peak Injection Memory Bandwidths (Bar Chart)
     if (parsedData.peakBandwidths && parsedData.peakBandwidths.length > 0) {
-        const section = createSection(reportContainer, "2. 系统峰值注入内存带宽 (MB/s)");
+        const section = createSection(reportContainer, "2. 系统峰值注入内存带宽 (GB/s)");
         const canvasId = "peakBandwidthChart";
         const canvasContainer = document.createElement('div');
         canvasContainer.className = 'chart-container';
+        canvasContainer.style.height = '400px';
         const canvas = createCanvas(canvasContainer, canvasId);
         section.appendChild(canvasContainer);
 
@@ -54,14 +55,36 @@ function displayMLCReport(parsedData, reportContainer, charts) {
             data: {
                 labels: parsedData.peakBandwidths.map(item => item.label),
                 datasets: [{
-                    label: '带宽 (MB/s)',
-                    data: parsedData.peakBandwidths.map(item => item.value),
+                    label: '带宽 (GB/s)',
+                    data: parsedData.peakBandwidths.map(item => item.value / 1024),
                     backgroundColor: 'rgba(75, 192, 192, 0.6)',
                     borderColor: 'rgba(75, 192, 192, 1)',
                     borderWidth: 1
                 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: 'MB/s'} } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        formatter: function(value) {
+                            return value.toFixed(1) + ' GB/s';
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        min: 0,
+                        title: {
+                            display: true,
+                            text: 'GB/s'
+                        }
+                    }
+                }
+            }
         });
         let allReadsBw = parsedData.peakBandwidths.find(b => b.label.toLowerCase().includes("all reads") || b.label.toLowerCase().includes("read only"));
         let streamTriadBw = parsedData.peakBandwidths.find(b => b.label.toLowerCase().includes("stream-triad") || b.label.toLowerCase().includes("stream triad"));
@@ -131,6 +154,7 @@ function displayMLCReport(parsedData, reportContainer, charts) {
         const canvasId = "loadedLatencyChart";
         const canvasContainer = document.createElement('div');
         canvasContainer.className = 'chart-container';
+        canvasContainer.style.height = '400px';
         const canvas = createCanvas(canvasContainer, canvasId);
         section.appendChild(canvasContainer);
 
@@ -138,31 +162,52 @@ function displayMLCReport(parsedData, reportContainer, charts) {
             type: 'line',
             data: {
                 labels: parsedData.loadedLatencies.map(item => item.delay),
-                datasets: [
-                    {
-                        label: '延迟 (ns)',
-                        data: parsedData.loadedLatencies.map(item => item.latency),
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        yAxisID: 'yLatency',
-                        tension: 0.1
-                    },
-                    {
-                        label: '带宽 (MB/s)',
-                        data: parsedData.loadedLatencies.map(item => item.bandwidth),
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        yAxisID: 'yBandwidth',
-                        tension: 0.1
-                    }
-                ]
+                datasets: [{
+                    label: '延迟 (ns)',
+                    data: parsedData.loadedLatencies.map(item => item.latency),
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    yAxisID: 'y'
+                }, {
+                    label: '带宽 (GB/s)',
+                    data: parsedData.loadedLatencies.map(item => item.bandwidth / 1024),
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    yAxisID: 'y1'
+                }]
             },
             options: {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    datalabels: {
+                        display: false
+                    }
+                },
                 scales: {
-                    x: { title: { display: true, text: '注入延迟 (ns) - 值越小负载越高' } },
-                    yLatency: { type: 'linear', display: true, position: 'left', title: { display: true, text: '延迟 (ns)' } },
-                    yBandwidth: { type: 'linear', display: true, position: 'right', title: { display: true, text: '带宽 (MB/s)' }, grid: { drawOnChartArea: false } }
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        min: 0,
+                        title: {
+                            display: true,
+                            text: '延迟 (ns)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: 0,
+                        title: {
+                            display: true,
+                            text: '带宽 (GB/s)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
                 }
             }
         });
