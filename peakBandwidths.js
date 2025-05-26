@@ -7,11 +7,16 @@ function plotPeakBandwidths(data) {
     }
     section.style.display = 'block';
 
+    // Convert MB/s to GB/s and format to one decimal place
+    const yValuesGB = data.values.map(val => parseFloat((val / 1024).toFixed(1)));
+    const textValues = yValuesGB.map(val => `${val} GB/s`);
+
     const plotData = [{
         x: data.labels,
-        y: data.values,
+        y: yValuesGB,
         type: 'bar',
-        text: data.values.map(val => `${parseFloat(val).toFixed(1)} MB/s`),
+        text: textValues,
+        textposition: 'auto',
         hoverinfo: 'text',
         marker: {
             color: '#337ab7'
@@ -19,9 +24,9 @@ function plotPeakBandwidths(data) {
     }];
 
     const layout = {
-        title: '系统峰值内存带宽 (MB/sec)',
+        title: '系统峰值内存带宽 (GB/sec)',
         xaxis: { title: '读写比' },
-        yaxis: { title: '带宽 (MB/sec)' },
+        yaxis: { title: '带宽 (GB/sec)', rangemode: 'tozero' }, // Ensure Y-axis starts at 0
         autosize: true,
         margin: { t: 50, b: 120, l: 80, r: 50 } // Increased bottom margin for labels
     };

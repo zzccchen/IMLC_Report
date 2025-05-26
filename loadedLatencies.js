@@ -8,13 +8,18 @@ function plotLoadedLatencies(data) {
     section.style.display = 'block';
 
     // Latency vs Delay
+    const formattedLatencies = data.latencies.map(val => parseFloat(val.toFixed(1)));
+    const latencyText = formattedLatencies.map((val, i) => `延迟: ${val} ns<br>注入延迟: ${data.delays[i]}`);
+
     const latencyTrace = {
         x: data.delays,
-        y: data.latencies,
+        y: formattedLatencies,
         type: 'scatter',
-        mode: 'lines+markers',
+        mode: 'lines+markers+text',
         name: '延迟 (ns)',
-        text: data.latencies.map((val, i) => `延迟: ${val} ns<br>注入延迟: ${data.delays[i]}`),
+        text: formattedLatencies.map(val => val.toString()),
+        textposition: 'top center',
+        hovertext: latencyText,
         hoverinfo: 'text',
         marker: {color: '#ff7f0e'}
     };
@@ -22,7 +27,7 @@ function plotLoadedLatencies(data) {
     const latencyLayout = {
         title: '加载延迟 vs 注入延迟',
         xaxis: { title: '注入延迟 (cycles)', type: 'log', autorange: true },
-        yaxis: { title: '延迟 (ns)' },
+        yaxis: { title: '延迟 (ns)', rangemode: 'tozero' },
         autosize: true,
         margin: { t: 50, b: 70, l: 80, r: 50 }
     };
@@ -30,13 +35,18 @@ function plotLoadedLatencies(data) {
     Plotly.newPlot('loadedLatenciesChart', [latencyTrace], latencyLayout, {responsive: true});
 
     // Bandwidth vs Delay
+    const bandwidthsGB = data.bandwidths.map(val => parseFloat((val / 1024).toFixed(1)));
+    const bandwidthText = bandwidthsGB.map((val, i) => `带宽: ${val} GB/s<br>注入延迟: ${data.delays[i]}`);
+
     const bandwidthTrace = {
         x: data.delays,
-        y: data.bandwidths,
+        y: bandwidthsGB,
         type: 'scatter',
-        mode: 'lines+markers',
-        name: '带宽 (MB/sec)',
-        text: data.bandwidths.map((val, i) => `带宽: ${parseFloat(val).toFixed(1)} MB/s<br>注入延迟: ${data.delays[i]}`),
+        mode: 'lines+markers+text',
+        name: '带宽 (GB/sec)',
+        text: bandwidthsGB.map(val => val.toString()),
+        textposition: 'top center',
+        hovertext: bandwidthText,
         hoverinfo: 'text',
         marker: {color: '#1f77b4'}
     };
@@ -44,7 +54,7 @@ function plotLoadedLatencies(data) {
     const bandwidthLayout = {
         title: '加载带宽 vs 注入延迟',
         xaxis: { title: '注入延迟 (cycles)', type: 'log', autorange: true },
-        yaxis: { title: '带宽 (MB/sec)' },
+        yaxis: { title: '带宽 (GB/sec)', rangemode: 'tozero' },
         autosize: true,
         margin: { t: 50, b: 70, l: 80, r: 50 }
     };
